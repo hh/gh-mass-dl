@@ -36,6 +36,10 @@ option_parser = OptionParser.new do |o|
     opts[:user] = user
   end
 
+  o.on("-d", "--dir DIRECTORY", "Directory to download repos too") do |dir|
+    opts[:dir] = dir
+  end
+
   o.on("-f", "--filter-user FILTER_USER", "Only download repos owned by this GitHub user") do |user|
     opts[:owner_filter] = user
   end
@@ -66,6 +70,15 @@ if opts[:type].kind_of? String
   target_type = opts[:type]
 else
   target_type = 'orgs'
+end
+
+if opts[:dir].kind_of? String
+  destination_dir = opts[:dir]
+  unless destination_dir =~ /.*\/$/
+    destination_dir += '/'
+  end
+else
+  destination_dir = './'
 end
 
 uri = URI.parse("https://api.github.com/#{target_type}/#{opts[:target]}/repos")
@@ -103,5 +116,6 @@ body.each do |repo|
 end
 
 repos.each do |r|
-  puts "#{r['full_name']}: #{r['ssh_uri']}"
+  puts "Cloning #{r['full_name']} from #{r['ssh_url']}"
+  system "git clone #{r['ssh_url']} #{destination_dir + r['name']}"
 end
