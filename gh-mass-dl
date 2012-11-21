@@ -1,0 +1,107 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+require 'json'
+require 'optparse'
+require 'net/http'
+require 'highline/import'
+
+opts = Hash.new
+
+option_parser = OptionParser.new do |o|
+  o.banner = "Usage: #{$0} [-h] [-vq] target"
+
+  o.on("-v","--verbose", "Raise verbosity") do
+    if opts[:verbosity].respond_to? :+
+      opts[:verbosity] += 1
+    else
+      opts[:verbosity] = 1
+    end
+  end
+  o.on("-q","--quiet", "Lower verbosity") do
+    if opts[:verbosity].respond_to? :-
+      opts[:verbosity] -= 1
+    else
+      opts[:verbosity] = -1
+    end
+  end
+
+  o.on("-t", "--type TARGET_TYPE",
+       [:user, :orgs],
+       "Type of object you want to download repos from, takes 'user' or 'orgs'") do |type|
+    opts[:type] = type
+  end
+
+  o.on("-u", "--user GITHUB_USER", "Your GitHub user to authenticate with") do |user|
+    opts[:user] = user
+  end
+
+  o.on("-f", "--filter-user FILTER_USER", "Only download repos owned by this GitHub user") do |user|
+    opts[:owner_filter] = user
+  end
+
+  o.on("-p", "--password PASSWORD", "The password for your GitHub user") do |pass|
+    opts[:password] = pass
+  end
+end
+
+option_parser.parse!
+
+if ARGV[0]
+  opts[:target] = ARGV[0]
+else
+  raise ArgumentError, "Target is a required argument, please specify a target."
+  exit 1
+end
+
+if opts[:password].kind_of? String
+  pass = opts[:password]
+else
+  pass = ask("Enter password: ") do |q|
+    q.echo = false
+  end
+end if opts[:user].kind_of? String
+
+if opts[:type].kind_of? String
+  target_type = opts[:type]
+else
+  target_type = 'orgs'
+end
+
+uri = URI.parse("https://api.github.com/#{target_type}/#{opts[:target]}/repos")
+
+http = Net::HTTP.new(uri.host, uri.port)
+http.use_ssl = true
+http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+
+req = Net::HTTP::Get.new(uri.request_uri)
+req.basic_auth(opts[:user], pass) if opts[:user].kind_of? String
+
+body = JSON.parse(http.request(req).body)
+
+if body.kind_of?(Hash)
+  case body['message']
+  when "Bad credentials"
+    raise ArgumentError, "Bad user name or password provided."
+    exit 1
+  when "Not Found"
+    raise ArgumentError, "Could not find #{target_type}/#{opts[:target]}."
+    exit 1
+  end
+end
+
+repos = Array.new
+
+body.each do |repo|
+  if opts[:owner_filter].kind_of? String
+    if opts[:owner_filter] == repo['owner']['login']
+      repos << repo
+    end
+  else
+    repos << repo
+  end
+end
+
+repos.each do |r|
+  puts "#{r['full_name']}: #{r['ssh_uri']}"
+end
