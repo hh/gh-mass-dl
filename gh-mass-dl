@@ -26,10 +26,9 @@ option_parser = OptionParser.new do |o|
     end
   end
 
-  o.on("-t", "--type TARGET_TYPE",
-       [:user, :orgs],
-       "Type of object you want to download repos from, takes 'user' or 'orgs'") do |type|
-    opts[:type] = type
+  o.on("-t", "--type TARGET_TYPE", [:users, :orgs],
+       "Type of object you want to download repos from, takes 'users' or 'orgs'") do |type|
+    opts[:type] = type.to_s
   end
 
   o.on("-u", "--user GITHUB_USER", "Your GitHub user to authenticate with") do |user|
